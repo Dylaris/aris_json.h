@@ -89,7 +89,11 @@ static void dump_value(int level, cjson_value_t *value, bool indent)
         cjson_array_t *array = value->as.array;
         for (unsigned i = 0; i < array->count; i++) {
             dump_value(level + 1, &array->values[i], true);
-            fwrite(",\n", 2, 1, output_fp);
+            if (i == array->count - 1) {
+                fwrite("\n", 1, 1, output_fp);
+            } else {
+                fwrite(",\n", 2, 1, output_fp);
+            }
         }
         dump_indent(level);
         fwrite("]", 1, 1, output_fp);
@@ -104,7 +108,7 @@ static void dump_value(int level, cjson_value_t *value, bool indent)
 
     case NUMBER: {
         char str[50];
-        sprintf(str, "%.2f", value->as.number);
+        snprintf(str, sizeof(str), "%.5g", value->as.number);
         fwrite(str, strlen(str), 1, output_fp);
     } break;
 
@@ -313,10 +317,16 @@ int main(void)
         cjson_pair(
             cjson_key("array"),
             cjson_array(
-                3,
+                4,
                 cjson_string("world"),
                 cjson_number(20),
-                cjson_boolean(false)
+                cjson_boolean(false),
+                cjson_array(
+                    3,
+                    cjson_string("nothing"),
+                    cjson_string("what"),
+                    cjson_string("null")
+                )
             )
         );
     cjson_end();
