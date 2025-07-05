@@ -11,6 +11,7 @@ typedef enum {
     STRING,
     NUMBER,
     BOOLEAN,
+    NONE,
 } cjson_type_t;
 
 #define INDENT "    "
@@ -34,6 +35,8 @@ typedef struct {
 } cjson_value_t;
 
 struct cjson_object_t {
+    unsigned count;
+    struct cjson_node_t **nodes;
 };
 
 struct cjson_array_t {
@@ -55,7 +58,7 @@ typedef struct cjson_node_t cjson_node_t;
 ////// global variable
 /////////////////////////////////////////////
 
-static cjson_node_t *list;
+static cjson_value_t this;
 static FILE *output_fp;
 
 /////////////////////////////////////////////
@@ -65,10 +68,8 @@ static FILE *output_fp;
 static void dump_node(int level, cjson_node_t *node);
 static void dump_value(int level, cjson_value_t *value, bool indent);
 static void dump_indent(int level);
-static cjson_node_t *new_node(const char *key, cjson_value_t value);
 static void free_node(cjson_node_t *node);
 static void free_value(cjson_value_t *value);
-static cjson_node_t *get_last_node(void);
 
 static void dump_indent(int level)
 {
@@ -82,13 +83,22 @@ static void dump_value(int level, cjson_value_t *value, bool indent)
     if (indent) dump_indent(level);
 
     switch (value->type) {
-    case OBJECT:
-        break;
+    case OBJECT: {
+        fwrite("{\n", 2, 1, output_fp);
+        cjson_object_t *object = value->as.object;
+        for (unsigned i = 0; i < object->count; i++) {
+            cjson_node_t *node = object->nodes[i];
+            dump_node(level+1, node);
+        }
+        dump_indent(level);
+        fwrite("}", 1, 1, output_fp);
+    } break;
+
     case ARRAY: {
         fwrite("[\n", 2, 1, output_fp);
         cjson_array_t *array = value->as.array;
         for (unsigned i = 0; i < array->count; i++) {
-            dump_value(level + 1, &array->values[i], true);
+            dump_value(level+1, &array->values[i], true);
             if (i == array->count - 1) {
                 fwrite("\n", 1, 1, output_fp);
             } else {
@@ -140,21 +150,22 @@ static void dump_node(int level, cjson_node_t *node)
     fwrite(",\n", 2, 1, output_fp);
 }
 
-static cjson_node_t *new_node(const char *key, cjson_value_t value)
-{
-    cjson_node_t *node = malloc(sizeof(cjson_node_t));
-    assert(node != NULL);
-    node->key = key;
-    node->value = value;
-    node->next = NULL;
-    return node;
-}
-
 static void free_value(cjson_value_t *value)
 {
     switch (value->type) {
-    case OBJECT:
-        break;
+    case OBJECT: {
+        cjson_object_t *object = value->as.object;
+
+        cjson_node_t *cur = object->nodes[0];
+        while (cur) {
+            cjson_node_t *tmp = cur->next;
+            free_node(cur);
+            cur = tmp;
+        }
+
+        if (object->nodes) free(object->nodes);
+        free(object);
+    } break;
 
     case ARRAY: {
         cjson_array_t *array = value->as.array;
@@ -162,7 +173,7 @@ static void free_value(cjson_value_t *value)
             free_value(&array->values[i]);
         }
         if (array->values) free(array->values);
-        if (array) free(array);
+        free(array);
     } break;
 
     case STRING: {
@@ -185,58 +196,41 @@ static void free_node(cjson_node_t *node)
     free(node);
 }
 
-static cjson_node_t *get_last_node(void)
-{
-    cjson_node_t *cur = list;
-    while (cur && cur->next) {
-        cur = cur->next;
-    }
-    return cur;
-}
-
 /////////////////////////////////////////////
 ////// public function
 /////////////////////////////////////////////
 
-void cjson_output(const char *path)
+void cjson_start(const char *path)
 {
     output_fp = fopen(path, "w");
     if (!output_fp) {
         fprintf(stderr, "ERROR: failed to open file '%s' to write\n", path);
         exit(1);
     }
-}
-
-void cjson_start(void)
-{
-    fwrite("{\n", 2, 1, output_fp);
-    list = NULL;
+    this.type = OBJECT;
 }
 
 void cjson_end(void)
 {
-    cjson_node_t *cur = list;
-    while (cur) {
-        cjson_node_t *tmp = cur->next;
-        dump_node(1, cur);
-        free_node(cur);
-        cur = tmp;
-    }
+    dump_value(0, &this, true);
 
-    fwrite("}\n", 2, 1, output_fp);
+    free_value(&this);
+    this.type = NONE;
+    this.as.object = NULL;
+
     fclose(output_fp);
 }
 
-#define cjson_pair(k, v)                            \
-    do {                                            \
-        cjson_node_t *node = new_node((k), (v));    \
-        if (!list) {                                \
-            list = node;                            \
-        } else {                                    \
-            cjson_node_t *last = get_last_node();   \
-            last->next = node;                      \
-        }                                           \
-    } while (0)
+cjson_node_t *cjson_node(const char *key, cjson_value_t value)
+{
+    cjson_node_t *node = malloc(sizeof(cjson_node_t));
+    assert(node != NULL);
+    node->key = key;
+    node->value = value;
+    node->next = NULL;
+
+    return node;
+}
 
 const char *cjson_key(const char *key)
 {
@@ -275,6 +269,13 @@ cjson_value_t cjson_boolean(bool value)
 
 cjson_value_t cjson_array(unsigned count, ...)
 {
+    if (count == 0) {
+        return (cjson_value_t) {
+            .type = ARRAY,
+            .as.array = NULL
+        };
+    }
+
     cjson_array_t *array = malloc(sizeof(cjson_array_t));
     assert(array != NULL);
     array->count = count;
@@ -297,24 +298,65 @@ cjson_value_t cjson_array(unsigned count, ...)
     return res;
 }
 
+cjson_value_t cjson_object(unsigned count, ...)
+{
+    if (count == 0) {
+        return (cjson_value_t) {
+            .type = OBJECT,
+            .as.object = NULL
+        };
+    }
+
+    cjson_object_t *object = malloc(sizeof(cjson_object_t));
+    assert(object != NULL);
+    object->count = count;
+    object->nodes = malloc(count*sizeof(cjson_node_t*));
+    assert(object->nodes != NULL); 
+
+    va_list args;
+    va_start(args, count);
+
+    for (unsigned i = 0; i < count; i++) {
+        object->nodes[i] = va_arg(args, cjson_node_t*);
+    }
+
+    va_end(args);
+
+    // Record the whole json using 'this'
+    this.as.object = object;
+
+    // Link the nodes in current object context 
+    for (unsigned i = 0; i < count-1; i++) {
+        object->nodes[i]->next = object->nodes[i+1];
+    }
+    object->nodes[count-1]->next = NULL;
+
+    cjson_value_t res = {
+        .type = OBJECT,
+        .as.object = object,
+    };
+    return res;
+}
+
 int main(void)
 {
-    cjson_output("output.json");
+    cjson_start("output.json");
 
-    cjson_start();
-        cjson_pair(
+    cjson_object(
+        5,
+        cjson_node(
             cjson_key("string"),
             cjson_string("hello")
-        );
-        cjson_pair(
+        ),
+        cjson_node(
             cjson_key("number"),
             cjson_number(1.2)
-        );
-        cjson_pair(
+        ),
+        cjson_node(
             cjson_key("boolean"),
             cjson_boolean(true)
-        );
-        cjson_pair(
+        ),
+        cjson_node(
             cjson_key("array"),
             cjson_array(
                 4,
@@ -322,13 +364,40 @@ int main(void)
                 cjson_number(20),
                 cjson_boolean(false),
                 cjson_array(
-                    3,
+                    4,
                     cjson_string("nothing"),
                     cjson_string("what"),
-                    cjson_string("null")
+                    cjson_string("null"),
+                    cjson_object(
+                        2,
+                        cjson_node(
+                            cjson_key("3-string"),
+                            cjson_string("hello")
+                        ),
+                        cjson_node(
+                            cjson_key("3-number"),
+                            cjson_number(2.4)
+                        )
+                    )
                 )
             )
-        );
+        ),
+        cjson_node(
+            cjson_key("object"),
+            cjson_object(
+                2,
+                cjson_node(
+                    cjson_key("2-string"),
+                    cjson_string("hello")
+                ),
+                cjson_node(
+                    cjson_key("2-number"),
+                    cjson_number(2.4)
+                )
+            )
+        )
+    );
+
     cjson_end();
 
     return 0;
