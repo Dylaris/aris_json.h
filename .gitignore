@@ -1,3 +1,4 @@
-cjson
+example/c2json
+example/json2c
+example/output.json
 sbc
-output.json

@@ -7,8 +7,9 @@
 ## Usage
 
 ```shell
-$ clang -o sbc sbc.c 
+$ clang -o sbc build/sbc.c 
 $ ./sbc
-$ ./cjson
-$ cat output.json
+$ cd example
+$ ./c2json
+$ cat ./output.json
 ```
