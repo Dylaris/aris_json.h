@@ -7,19 +7,19 @@ int main(void)
 
     cjson_object(
         5,
-        cjson_node(
+        cjson_pair(
             cjson_key("string"),
             cjson_string("hello")
         ),
-        cjson_node(
+        cjson_pair(
             cjson_key("number"),
             cjson_number(1.2)
         ),
-        cjson_node(
+        cjson_pair(
             cjson_key("boolean"),
             cjson_boolean(true)
         ),
-        cjson_node(
+        cjson_pair(
             cjson_key("array"),
             cjson_array(
                 4,
@@ -33,27 +33,27 @@ int main(void)
                     cjson_string("null"),
                     cjson_object(
                         2,
-                        cjson_node(
+                        cjson_pair(
                             cjson_key("3-string"),
-                            cjson_none()
+                            cjson_null()
                         ),
-                        cjson_node(
+                        cjson_pair(
                             cjson_key("3-number"),
-                            cjson_none()
+                            cjson_null()
                         )
                     )
                 )
             )
         ),
-        cjson_node(
+        cjson_pair(
             cjson_key("object"),
             cjson_object(
                 2,
-                cjson_node(
+                cjson_pair(
                     cjson_key("2-string"),
                     cjson_string("hello")
                 ),
-                cjson_node(
+                cjson_pair(
                     cjson_key("2-number"),
                     cjson_number(2.4)
                 )
