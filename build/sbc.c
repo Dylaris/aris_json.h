@@ -11,6 +11,7 @@ int main(int argc, char **argv)
 
     sbc_cmd_t cmd = {0};
     sbc_cmd_append(&cmd, CC,
+                         "-g",
                          "-I", "./",
                          "-Wall", "-Wextra",
                          "-O2",

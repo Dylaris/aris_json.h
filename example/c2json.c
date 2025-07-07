@@ -3,65 +3,72 @@
 
 int main(void)
 {
-    cjson_start("output.json");
+    cjson_t cj;
+    cjson_init(&cj, stdout, "   ");
 
-    cjson_object(
-        5,
-        cjson_pair(
-            cjson_key("string"),
-            cjson_string("hello")
-        ),
-        cjson_pair(
-            cjson_key("number"),
-            cjson_number(1.2)
-        ),
-        cjson_pair(
-            cjson_key("boolean"),
-            cjson_boolean(true)
-        ),
-        cjson_pair(
-            cjson_key("array"),
-            cjson_array(
-                4,
-                cjson_string("world"),
-                cjson_number(20),
-                cjson_boolean(false),
-                cjson_array(
-                    4,
-                    cjson_string("nothing"),
-                    cjson_string("what"),
-                    cjson_string("null"),
-                    cjson_object(
-                        2,
-                        cjson_pair(
-                            cjson_key("3-string"),
-                            cjson_null()
-                        ),
-                        cjson_pair(
-                            cjson_key("3-number"),
-                            cjson_null()
-                        )
-                    )
-                )
-            )
-        ),
-        cjson_pair(
-            cjson_key("object"),
-            cjson_object(
-                2,
-                cjson_pair(
-                    cjson_key("2-string"),
-                    cjson_string("hello")
-                ),
-                cjson_pair(
-                    cjson_key("2-number"),
-                    cjson_number(2.4)
-                )
-            )
-        )
-    );
+    cjson_object_begin(&cj, NULL);
+        cjson_key(&cj, "null");
+        cjson_null(&cj);
 
-    cjson_end();
+        cjson_key(&cj, "string");
+        cjson_string(&cj, "hello");
 
+        cjson_key(&cj, "number");
+        cjson_number(&cj, 1.24);
+
+        cjson_key(&cj, "boolean");
+        cjson_boolean(&cj, true);
+
+        cjson_array_begin(&cj, "array");
+            cjson_null(&cj);
+            cjson_string(&cj, "hello");
+            cjson_number(&cj, 1.24);
+            cjson_boolean(&cj, true);
+
+            cjson_object_begin(&cj, "object");
+                cjson_key(&cj, "null");
+                cjson_null(&cj);
+
+                cjson_key(&cj, "string");
+                cjson_string(&cj, "hello");
+
+                cjson_key(&cj, "number");
+                cjson_number(&cj, 1.24);
+
+                cjson_key(&cj, "boolean");
+                cjson_boolean(&cj, true);
+
+                cjson_array_begin(&cj, "array");
+                    cjson_null(&cj);
+                    cjson_string(&cj, "hello");
+                    cjson_number(&cj, 1.24);
+                    cjson_boolean(&cj, true);
+                cjson_array_end(&cj);
+            cjson_object_end(&cj);
+        cjson_array_end(&cj);
+
+        cjson_object_begin(&cj, "object");
+            cjson_key(&cj, "null");
+            cjson_null(&cj);
+
+            cjson_key(&cj, "string");
+            cjson_string(&cj, "hello");
+
+            cjson_key(&cj, "number");
+            cjson_number(&cj, 1.24);
+
+            cjson_key(&cj, "boolean");
+            cjson_boolean(&cj, true);
+
+            cjson_array_begin(&cj, "array");
+                cjson_null(&cj);
+                cjson_string(&cj, "hello");
+                cjson_number(&cj, 1.24);
+                cjson_boolean(&cj, true);
+            cjson_array_end(&cj);
+        cjson_object_end(&cj);
+    cjson_object_end(&cj);
+
+    cjson_fini(&cj);
     return 0;
 }
