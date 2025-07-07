@@ -4,7 +4,7 @@
 int main(void)
 {
     cjson_t cj;
-    cjson_init(&cj, stdout, "   ");
+    cjson_init(&cj, stdout, "\t");
 
     cjson_object_begin(&cj);
         cjson_key(&cj, "null");
@@ -72,6 +72,8 @@ int main(void)
             cjson_array_end(&cj);
         cjson_object_end(&cj);
     cjson_object_end(&cj);
+
+    cjson_dump(&cj);
 
     cjson_fini(&cj);
     return 0;
