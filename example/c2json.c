@@ -24,20 +24,20 @@ int main(void)
             cjson_string(&cj, "hello");
             cjson_number(&cj, 1.24);
             cjson_boolean(&cj, true);
-
-            cjson_object_begin(&cj, "object");
+        
+            cjson_object_begin(&cj, NULL);
                 cjson_key(&cj, "null");
                 cjson_null(&cj);
-
+                   
                 cjson_key(&cj, "string");
                 cjson_string(&cj, "hello");
-
+                   
                 cjson_key(&cj, "number");
                 cjson_number(&cj, 1.24);
-
+                   
                 cjson_key(&cj, "boolean");
                 cjson_boolean(&cj, true);
-
+                   
                 cjson_array_begin(&cj, "array");
                     cjson_null(&cj);
                     cjson_string(&cj, "hello");
@@ -50,16 +50,16 @@ int main(void)
         cjson_object_begin(&cj, "object");
             cjson_key(&cj, "null");
             cjson_null(&cj);
-
+        
             cjson_key(&cj, "string");
             cjson_string(&cj, "hello");
-
+        
             cjson_key(&cj, "number");
             cjson_number(&cj, 1.24);
-
+        
             cjson_key(&cj, "boolean");
             cjson_boolean(&cj, true);
-
+        
             cjson_array_begin(&cj, "array");
                 cjson_null(&cj);
                 cjson_string(&cj, "hello");

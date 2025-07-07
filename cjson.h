@@ -24,6 +24,16 @@
 #include <stdarg.h>
 #include <assert.h>
 
+/////////////////////////////////////////////
+////// constant
+/////////////////////////////////////////////
+
+#define MAX_KEY_LEN 128
+
+/////////////////////////////////////////////
+////// enum
+/////////////////////////////////////////////
+
 typedef enum {
     CJSON_NULL = 0,
     CJSON_OBJECT,
@@ -38,8 +48,6 @@ typedef enum {
     CJSON_SCOPE_OBJECT,
     CJSON_SCOPE_ARRAY,
 } cjson_scope_type_t;
-
-#define INDENT "    "
 
 /////////////////////////////////////////////
 ////// structure
@@ -73,16 +81,9 @@ struct cjson_pair_t {
 };
 
 typedef struct {
-    unsigned count;
-    unsigned capacity;
-    cjson_value_t *items;
-} cjson_scope_t;
-
-typedef struct {
     FILE *output;
     char *indent;
 
-    char *key;
     struct {
         unsigned count;
         unsigned capacity;
@@ -90,7 +91,8 @@ typedef struct {
     } scopes;
     cjson_scope_type_t scope_type;
 
-    cjson_value_t *root;
+    char key[MAX_KEY_LEN];  // Record the current member key
+    cjson_value_t *root;    // Record the first scope
 } cjson_t;
 
 /////////////////////////////////////////////
@@ -103,7 +105,6 @@ extern "C" {
 
 void cjson_init(cjson_t *cj, FILE *fp, const char *indent);
 void cjson_fini(cjson_t *cj);
-cjson_pair_t cjson_pair(char *key, cjson_value_t value);
 void cjson_key(cjson_t *cj, const char *key);
 void cjson_string(cjson_t *cj, const char *value);
 void cjson_number(cjson_t *cj, float value);
@@ -121,13 +122,6 @@ void cjson_object_end(cjson_t *cj);
 #endif // CJSON_H
 
 #ifdef CJSON_IMPLEMENTATION
-
-/////////////////////////////////////////////
-////// global variable
-/////////////////////////////////////////////
-
-static cjson_value_t __this;    // current json object
-static FILE *__outfp;           // output file pointer
 
 /////////////////////////////////////////////
 ////// private function
@@ -149,6 +143,12 @@ static void dump_value(cjson_t *cj, int level, cjson_value_t *value, bool indent
 static void dump_indent(cjson_t *cj, int level);
 static void free_pair(cjson_pair_t *pair);
 static void free_value(cjson_value_t *value);
+static cjson_pair_t cjson__pair(char *key, cjson_value_t value);
+static cjson_pair_t *cjson__current_scope(cjson_t *cj);
+static cjson_pair_t cjson__pop_scope(cjson_t *cj);
+static void cjson__push_scope(cjson_t *cj, cjson_pair_t scope);
+static void cjson__append_element(cjson_t *cj, char *key, cjson_value_t value);
+static bool cjson__is_in_array(cjson_t *cj);
 
 static void dump_indent(cjson_t *cj, int level)
 {
@@ -241,11 +241,8 @@ static void free_value(cjson_value_t *value)
 {
     switch (value->type) {
     case CJSON_OBJECT: {
-        cjson_pair_t *cur = &value->as.object.items[0];
-        while (cur) {
-            cjson_pair_t *tmp = NULL;
-            free_pair(cur);
-            cur = tmp;
+        for (unsigned i = 0; i < value->as.object.count; i++) {
+            free_pair(&value->as.object.items[i]);
         }
         if (value->as.object.items) free(value->as.object.items);
     } break;
@@ -274,8 +271,14 @@ static void free_value(cjson_value_t *value)
 
 static void free_pair(cjson_pair_t *pair)
 {
-    free(pair->key);
+    if (pair->key) free(pair->key);
     free_value(&pair->value);
+}
+
+static bool cjson__is_in_array(cjson_t *cj)
+{
+    cjson_pair_t *scope = cjson__current_scope(cj);
+    return scope->value.type == CJSON_ARRAY;
 }
 
 static cjson_pair_t *cjson__current_scope(cjson_t *cj)
@@ -318,6 +321,25 @@ static void cjson__push_scope(cjson_t *cj, cjson_pair_t scope)
     }
 }
 
+static cjson_pair_t cjson__pair(char *key, cjson_value_t value)
+{
+    return (cjson_pair_t){
+        .key = key,
+        .value = value,
+    };
+}
+
+static void cjson__append_element(cjson_t *cj, char *key, cjson_value_t value)
+{
+    cjson_pair_t *scope = cjson__current_scope(cj);
+    if (cj->scope_type == CJSON_SCOPE_OBJECT) {
+        cjson_pair_t pair = cjson__pair(key, value);
+        dyna_append(&scope->value.as.object, pair);
+    } else if (cj->scope_type == CJSON_SCOPE_ARRAY) {
+        dyna_append(&scope->value.as.array, value);
+    }
+}
+
 /////////////////////////////////////////////
 ////// public function
 /////////////////////////////////////////////
@@ -328,7 +350,6 @@ void cjson_init(cjson_t *cj, FILE *fp, const char *indent)
 
     cj->output = fp;
     cj->indent = strdup(indent);
-    cj->key = NULL;
     cj->scopes.count = 0;
     cj->scopes.capacity = 0;
     cj->scopes.items = NULL;
@@ -339,123 +360,106 @@ void cjson_init(cjson_t *cj, FILE *fp, const char *indent)
 void cjson_fini(cjson_t *cj)
 {
     dump_value(cj, 0, cj->root, true);
+
+    free_value(cj->root);
     if (cj->indent) free(cj->indent);
     if (cj->scopes.items) free(cj->scopes.items);
-    memset(cj, 0, sizeof(cjson_t));
-}
 
-cjson_pair_t cjson_pair(char *key, cjson_value_t value)
-{
-    return (cjson_pair_t){
-        .key = key,         // key is from cjson_key(), so do not need to strdup
-        .value = value,
-    };
+    memset(cj, 0, sizeof(cjson_t));
 }
 
 void cjson_key(cjson_t *cj, const char *key)
 {
     // TODO: consider the case that key has already exist
     assert(cj != NULL && key != NULL);
-    cj->key = strdup(key);
+    strncpy(cj->key, key, sizeof(cj->key));
+    cj->key[MAX_KEY_LEN - 1] = '\0';
 }
-
-#define CJSON_APPEND_VALUE()                                      \
-    do {                                                          \
-        cjson_pair_t *scope = cjson__current_scope(cj);           \
-                                                                  \
-        if (cj->scope_type == CJSON_SCOPE_OBJECT) {               \
-            cjson_pair_t pair = cjson_pair(cj->key, item);        \
-            dyna_append(&scope->value.as.object, pair);           \
-        } else if (cj->scope_type == CJSON_SCOPE_ARRAY) {         \
-            dyna_append(&scope->value.as.array, item);            \
-        }                                                         \
-    } while (0)
 
 void cjson_string(cjson_t *cj, const char *value)
 {
     assert(cj != NULL && value != NULL);
 
-    cjson_value_t item = {
+    cjson_value_t pair_value = {
         .type = CJSON_STRING,
         .as.string = strdup(value),
     };
-    CJSON_APPEND_VALUE();
+    char *pair_key = cjson__is_in_array(cj) ? NULL : strdup(cj->key);
+    cjson__append_element(cj, pair_key, pair_value);
 }
 
 void cjson_number(cjson_t *cj, float value)
 {
     assert(cj != NULL);
 
-    cjson_value_t item = {
+    cjson_value_t pair_value = {
         .type = CJSON_NUMBER,
         .as.number = value,
     };
-    CJSON_APPEND_VALUE();
+    char *pair_key = cjson__is_in_array(cj) ? NULL : strdup(cj->key);
+    cjson__append_element(cj, pair_key, pair_value);
 }
 
 void cjson_boolean(cjson_t *cj, bool value)
 {
     assert(cj != NULL);
 
-    cjson_value_t item = {
+    cjson_value_t pair_value = {
         .type = CJSON_BOOLEAN,
         .as.boolean = value,
     };
-    CJSON_APPEND_VALUE();
+    char *pair_key = cjson__is_in_array(cj) ? NULL : strdup(cj->key);
+    cjson__append_element(cj, pair_key, pair_value);
 }
 
 void cjson_null(cjson_t *cj)
 {
     assert(cj != NULL);
 
-    cjson_value_t item = {
+    cjson_value_t pair_value = {
         .type = CJSON_NULL,
     };
-    CJSON_APPEND_VALUE();
+    char *pair_key = cjson__is_in_array(cj) ? NULL : strdup(cj->key);
+    cjson__append_element(cj, pair_key, pair_value);
 }
 
 void cjson_array_begin(cjson_t *cj, const char *key)
 {
-    cjson_value_t value = {
+    cjson_value_t pair_value = {
         .type = CJSON_ARRAY,
         .as.array.count = 0,
         .as.array.capacity = 0,
         .as.array.items = NULL,
     };
-    cjson__push_scope(cj, cjson_pair(strdup(key), value));
+    char *pair_key = key ? strdup(key) : NULL;
+    cjson__push_scope(cj, cjson__pair(pair_key, pair_value));
 }
 
 void cjson_array_end(cjson_t *cj)
 {
     cjson_pair_t array = cjson__pop_scope(cj);
-    cj->key = array.key;
-    cjson_value_t item = array.value;
-    CJSON_APPEND_VALUE();
+    cjson__append_element(cj, array.key, array.value);
 }
 
 void cjson_object_begin(cjson_t *cj, const char *key)
 {
-    cjson_value_t value = {
+    cjson_value_t pair_value = {
         .type = CJSON_OBJECT,
         .as.object.count = 0,
         .as.object.capacity = 0,
         .as.object.items = NULL,
     };
-    if (!key) {
-        cjson__push_scope(cj, cjson_pair(NULL, value));
-        cj->root = &cj->scopes.items[0].value;
-    } else {
-        cjson__push_scope(cj, cjson_pair(strdup(key), value));
-    }
+    char *pair_key = key ? strdup(key) : NULL;
+
+    cjson__push_scope(cj, cjson__pair(pair_key, pair_value));
+    if (!cj->root) cj->root = &cj->scopes.items[0].value;
 }
 
 void cjson_object_end(cjson_t *cj)
 {
     if (cj->scopes.count == 1) return;
     cjson_pair_t object = cjson__pop_scope(cj);
-    cj->key = object.key;
-    cjson_value_t item = object.value;
-    CJSON_APPEND_VALUE();
+    cjson__append_element(cj, object.key, object.value);
 }
 
 #endif // CJSON_IMPLEMENTATION
