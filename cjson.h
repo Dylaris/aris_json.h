@@ -119,9 +119,9 @@ void cjson_string(cjson_t *cj, const char *value);
 void cjson_number(cjson_t *cj, float value);
 void cjson_boolean(cjson_t *cj, bool value);
 void cjson_null(cjson_t *cj);
-void cjson_array_begin(cjson_t *cj, const char *key);
+void cjson_array_begin(cjson_t *cj);
 void cjson_array_end(cjson_t *cj);
-void cjson_object_begin(cjson_t *cj, const char *key);
+void cjson_object_begin(cjson_t *cj);
 void cjson_object_end(cjson_t *cj);
 
 #ifdef __cplusplus
@@ -330,14 +330,16 @@ static bool cjson__is_in_array(cjson_t *cj)
     if (cj->code != CJSON_OK) return false;
 
     cjson_pair_t *scope = cjson__current_scope(cj);
-    return scope->value.type == CJSON_VALUE_ARRAY;
+    // No scope means it is in root object, which has no key,
+    // similar to 'in array'
+    return !scope || scope->value.type == CJSON_VALUE_ARRAY;
 }
 
 static cjson_pair_t *cjson__current_scope(cjson_t *cj)
 {
     if (cj->code != CJSON_OK) return NULL;
 
-    if (cj->scopes.count == 0) cjson__set_error(cj, CJSON_SCOPE_UNDERFLOW);
+    if (cj->scopes.count == 0) return NULL;
     return &cj->scopes.items[cj->scopes.count - 1];
 }
 
@@ -497,7 +499,7 @@ void cjson_null(cjson_t *cj)
     cjson__append_element(cj, pair_key, pair_value);
 }
 
-void cjson_array_begin(cjson_t *cj, const char *key)
+void cjson_array_begin(cjson_t *cj)
 {
     assert(cj != NULL);
     if (cj->code != CJSON_OK) return;
@@ -508,7 +510,7 @@ void cjson_array_begin(cjson_t *cj, const char *key)
         .as.array.capacity = 0,
         .as.array.items = NULL,
     };
-    char *pair_key = key && !cjson__is_in_array(cj) ? strdup(key) : NULL;
+    char *pair_key = cjson__is_in_array(cj) ? NULL : strdup(cj->key);
     cjson__push_scope(cj, cjson__pair(pair_key, pair_value));
 }
 
@@ -521,7 +523,7 @@ void cjson_array_end(cjson_t *cj)
     cjson__append_element(cj, array.key, array.value);
 }
 
-void cjson_object_begin(cjson_t *cj, const char *key)
+void cjson_object_begin(cjson_t *cj)
 {
     assert(cj != NULL);
     if (cj->code != CJSON_OK) return;
@@ -532,7 +534,7 @@ void cjson_object_begin(cjson_t *cj, const char *key)
         .as.object.capacity = 0,
         .as.object.items = NULL,
     };
-    char *pair_key = key && !cjson__is_in_array(cj) ? strdup(key) : NULL;
+    char *pair_key = cjson__is_in_array(cj) ? NULL : strdup(cj->key);
     cjson__push_scope(cj, cjson__pair(pair_key, pair_value));
     if (!cj->root) cj->root = &cj->scopes.items[0].value;
 }
