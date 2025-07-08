@@ -1,6 +1,6 @@
 // BRIEF:
 //
-// This file implements some functions to serialize JSON using C.
+// This file implements some functions to serialize and deserialize JSON using C.
 //
 // USAGE:
 //   
