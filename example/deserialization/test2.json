@@ -1,0 +1,23 @@
+{
+  "user": {
+    "id": 12345,
+    "role": "admin",
+    "status": "active"
+  },
+  "settings": {
+    "timezone": "GMT-5",
+    "date_format": "YYYY-MM-DD"
+  },
+  "friends": [
+    {
+      "id": 67890,
+      "name": "Alice Smith",
+      "status": "online"
+    },
+    {
+      "id": 11223,
+      "name": "Bob Brown",
+      "status": "offline"
+    }
+  ]
+}

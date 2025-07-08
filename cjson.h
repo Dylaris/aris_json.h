@@ -116,7 +116,8 @@ void cjson_init(cjson_t *cj, FILE *fp, const char *indent);
 void cjson_dump(cjson_t *cj);
 void cjson_fini(cjson_t *cj);
 cjson_value_t *cjson_query(cjson_value_t *root, const char *key);
-bool cjson_parse(cjson_t *cj, const char *filename);
+bool cjson_parse(cjson_t *cj, const char *input, unsigned size);
+void cjson_append_element(cjson_t *cj, char *key, cjson_value_t value);
 
 void cjson_key(cjson_t *cj, const char *key);
 void cjson_string(cjson_t *cj, const char *value);
@@ -135,6 +136,9 @@ void cjson_object_end(cjson_t *cj);
 #endif // CJSON_H
 
 #ifdef CJSON_IMPLEMENTATION
+
+#define STB_C_LEXER_IMPLEMENTATION
+#include "stb_c_lexer.h"
 
 /////////////////////////////////////////////
 ////// private function
@@ -160,9 +164,167 @@ static cjson_pair_t cjson__pair(char *key, cjson_value_t value);
 static cjson_pair_t *cjson__current_scope(cjson_t *cj);
 static cjson_pair_t cjson__pop_scope(cjson_t *cj);
 static void cjson__push_scope(cjson_t *cj, cjson_pair_t scope);
-static void cjson__append_element(cjson_t *cj, char *key, cjson_value_t value);
 static bool cjson__is_in_array(cjson_t *cj);
 static void cjson__set_error(cjson_t *cj, cjson_errno_t code);
+static long peek(stb_lexer *lex);
+static long advance(stb_lexer *lex);
+static bool consume(stb_lexer *lex, long expected, const char *msg);
+static bool parse_value(cjson_t *cj, stb_lexer *lex);
+static bool parse_array(cjson_t *cj, stb_lexer *lex);
+static bool parse_object(cjson_t *cj, stb_lexer *lex);
+
+static bool parse_array(cjson_t *cj, stb_lexer *lex)
+{
+    if (!consume(lex, '[', "array should start with '['")) return false;
+    cjson_array_begin(cj);
+
+    // Handle empty array
+    if (peek(lex) == ']') {
+        advance(lex);   // consume ']'
+        cjson_array_end(cj);
+        return true;
+    }
+
+    while (true) {
+        if (!parse_value(cj, lex)) return false;
+
+        if (peek(lex) != ',') break;
+        advance(lex);   // consume ','
+        if (peek(lex) == ']') break;    // Allowing trailing comma at the end of array
+    }
+
+    if (!consume(lex, ']', "array should end with ']'")) return false;
+    cjson_array_end(cj);
+
+    return true;
+}
+
+static bool parse_object(cjson_t *cj, stb_lexer *lex)
+{
+    if (!consume(lex, '{', "object should start with '{'")) return false;
+    cjson_object_begin(cj);
+
+    // Handle empty object
+    if (peek(lex) == '}') {
+        advance(lex);   // consume '}'
+        cjson_object_end(cj);
+        return true;
+    }
+
+    while (true) {
+        // Parse key
+        if (!consume(lex, CLEX_dqstring, "key should be a string")) return false;
+        cjson_key(cj, lex->string);
+
+        // Parse colon separator
+        if (!consume(lex, ':', "lack of ':' in a pair")) return false;
+
+        // Parse value
+        if (!parse_value(cj, lex)) return false;
+
+        if (peek(lex) != ',') break;
+        advance(lex);   // consume ','
+        if (peek(lex) == '}') break;    // Allowing trailing comma at the end of object
+    }
+
+    if (!consume(lex, '}', "object should end with '}'")) return false;
+    cjson_object_end(cj);
+
+    return true;
+}
+
+static bool parse_value(cjson_t *cj, stb_lexer *lex)
+{
+    long token = advance(lex);
+    switch (token) {
+    case CLEX_dqstring:
+        cjson_string(cj, lex->string);
+        return true;
+        
+    case CLEX_intlit:
+        cjson_number(cj, (float)lex->int_number);
+        return true;
+        
+    case CLEX_floatlit:
+        cjson_number(cj, (float)lex->real_number);
+        return true;
+        
+    case CLEX_id:
+        if (strcmp(lex->string, "null") == 0) {
+            cjson_null(cj);
+            return true;
+        } 
+        if (strcmp(lex->string, "true") == 0) {
+            cjson_boolean(cj, true);
+            return true;
+        } 
+        if (strcmp(lex->string, "false") == 0) {
+            cjson_boolean(cj, false);
+            return true;
+        }
+        return false;
+        
+    case '{':
+        lex->parse_point--;     // Put back the token for parse_object to consume
+        return parse_object(cj, lex);
+        
+    case '[':
+        lex->parse_point--;     // Put back the token for parse_array to consume
+        return parse_array(cj, lex);
+        
+    default:
+        return false;
+    }
+}
+
+static const char *token_kind(long token)
+{
+    switch (token) {
+    case CLEX_id: return "identifier";
+    case CLEX_dqstring: return "double quote string";
+    case CLEX_sqstring: return "single quote string";
+    case CLEX_charlit: return "character";
+    case CLEX_intlit: return "integer";
+    case CLEX_floatlit: return "float";
+    default:
+        if (token >= 0 && token < 256) {
+            static char tmp_buf[16];
+            snprintf(tmp_buf, sizeof(tmp_buf), "%c", (char)token);
+            return tmp_buf;
+        } else {
+            return "unknown token";
+        }
+    }
+}
+
+static long peek(stb_lexer *lex)
+{
+    char *saved_point = lex->parse_point;
+    assert(stb_c_lexer_get_token(lex));
+    long token = lex->token;
+    lex->parse_point = saved_point;
+    return token;
+}
+
+static long advance(stb_lexer *lex)
+{
+    assert(stb_c_lexer_get_token(lex));
+    return lex->token;
+}
+
+static bool consume(stb_lexer *lex, long expected, const char *msg)
+{
+    long token = advance(lex);
+    if (token != expected) {
+        stb_lex_location loc = {0};
+        stb_c_lexer_get_location(lex, lex->where_firstchar, &loc);
+        fprintf(stderr, "ERROR: %s (expected '%s' but found '%s') at %d:%d\n",
+                msg, token_kind(expected), token_kind(token),
+                loc.line_number, loc.line_offset);
+        return false;
+    }
+    return true;
+}
 
 static void cjson__set_error(cjson_t *cj, cjson_errno_t code)
 {
@@ -384,20 +546,29 @@ static cjson_pair_t cjson__pair(char *key, cjson_value_t value)
     };
 }
 
-static void cjson__append_element(cjson_t *cj, char *key, cjson_value_t value)
-{
-    cjson_pair_t *scope = cjson__current_scope(cj);
-    if (cj->scope_type == CJSON_SCOPE_OBJECT) {
-        cjson_pair_t pair = cjson__pair(key, value);
-        cjson_dyna_append(&scope->value.as.object, pair);
-    } else if (cj->scope_type == CJSON_SCOPE_ARRAY) {
-        cjson_dyna_append(&scope->value.as.array, value);
-    }
-}
-
 /////////////////////////////////////////////
 ////// public function
 /////////////////////////////////////////////
+
+bool cjson_parse(cjson_t *cj, const char *input, unsigned size)
+{
+    assert(cj != NULL && input != NULL);
+    if (size == 0) return false;
+
+    stb_lexer lex = {0};
+    static char string_store[4096];
+    
+    stb_c_lexer_init(&lex, input, input + size, string_store, sizeof(string_store));
+
+    long token = peek(&lex);
+    if (token == '{') {
+        return parse_object(cj, &lex);
+    } else if (token == '[') {
+        return parse_array(cj, &lex);
+    } else {
+        return false;
+    }
+}
 
 void cjson_init(cjson_t *cj, FILE *fp, const char *indent)
 {
@@ -449,6 +620,17 @@ cjson_value_t *cjson_query(cjson_value_t *root, const char *key)
     return NULL;
 }
 
+void cjson_append_element(cjson_t *cj, char *key, cjson_value_t value)
+{
+    cjson_pair_t *scope = cjson__current_scope(cj);
+    if (cj->scope_type == CJSON_SCOPE_OBJECT) {
+        cjson_pair_t pair = cjson__pair(key, value);
+        cjson_dyna_append(&scope->value.as.object, pair);
+    } else if (cj->scope_type == CJSON_SCOPE_ARRAY) {
+        cjson_dyna_append(&scope->value.as.array, value);
+    }
+}
+
 void cjson_key(cjson_t *cj, const char *key)
 {
     assert(cj != NULL && key != NULL);
@@ -490,7 +672,7 @@ void cjson_string(cjson_t *cj, const char *value)
         .as.string = value ? strdup(value) : NULL,
     };
     char *pair_key = cjson__is_in_array(cj) ? NULL : strdup(cj->key);
-    cjson__append_element(cj, pair_key, pair_value);
+    cjson_append_element(cj, pair_key, pair_value);
 }
 
 void cjson_number(cjson_t *cj, float value)
@@ -503,7 +685,7 @@ void cjson_number(cjson_t *cj, float value)
         .as.number = value,
     };
     char *pair_key = cjson__is_in_array(cj) ? NULL : strdup(cj->key);
-    cjson__append_element(cj, pair_key, pair_value);
+    cjson_append_element(cj, pair_key, pair_value);
 }
 
 void cjson_boolean(cjson_t *cj, bool value)
@@ -516,7 +698,7 @@ void cjson_boolean(cjson_t *cj, bool value)
         .as.boolean = value,
     };
     char *pair_key = cjson__is_in_array(cj) ? NULL : strdup(cj->key);
-    cjson__append_element(cj, pair_key, pair_value);
+    cjson_append_element(cj, pair_key, pair_value);
 }
 
 void cjson_null(cjson_t *cj)
@@ -528,7 +710,7 @@ void cjson_null(cjson_t *cj)
         .type = CJSON_VALUE_NULL,
     };
     char *pair_key = cjson__is_in_array(cj) ? NULL : strdup(cj->key);
-    cjson__append_element(cj, pair_key, pair_value);
+    cjson_append_element(cj, pair_key, pair_value);
 }
 
 void cjson_array_begin(cjson_t *cj)
@@ -544,6 +726,7 @@ void cjson_array_begin(cjson_t *cj)
     };
     char *pair_key = cjson__is_in_array(cj) ? NULL : strdup(cj->key);
     cjson__push_scope(cj, cjson__pair(pair_key, pair_value));
+    if (!cj->root) cj->root = &cj->scopes.items[0].value;
 }
 
 void cjson_array_end(cjson_t *cj)
@@ -551,8 +734,10 @@ void cjson_array_end(cjson_t *cj)
     assert(cj != NULL);
     if (cj->code != CJSON_OK) return;
 
+    if (cj->scopes.count == 1) return;
+
     cjson_pair_t array = cjson__pop_scope(cj);
-    cjson__append_element(cj, array.key, array.value);
+    cjson_append_element(cj, array.key, array.value);
 }
 
 void cjson_object_begin(cjson_t *cj)
@@ -579,7 +764,7 @@ void cjson_object_end(cjson_t *cj)
     if (cj->scopes.count == 1) return;
 
     cjson_pair_t object = cjson__pop_scope(cj);
-    cjson__append_element(cj, object.key, object.value);
+    cjson_append_element(cj, object.key, object.value);
 }
 
 #undef cjson_dyna_append
