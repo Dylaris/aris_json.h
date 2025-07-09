@@ -117,7 +117,6 @@ void cjson_dump(cjson_t *cj);
 void cjson_fini(cjson_t *cj);
 cjson_value_t *cjson_query(cjson_value_t *root, const char *key);
 bool cjson_parse(cjson_t *cj, const char *input, unsigned size);
-void cjson_append_element(cjson_t *cj, char *key, cjson_value_t value);
 
 void cjson_key(cjson_t *cj, const char *key);
 void cjson_string(cjson_t *cj, const char *value);
@@ -166,12 +165,24 @@ static cjson_pair_t cjson__pop_scope(cjson_t *cj);
 static void cjson__push_scope(cjson_t *cj, cjson_pair_t scope);
 static bool cjson__is_in_array(cjson_t *cj);
 static void cjson__set_error(cjson_t *cj, cjson_errno_t code);
+static void cjson__append_element(cjson_t *cj, char *key, cjson_value_t value);
 static long peek(stb_lexer *lex);
 static long advance(stb_lexer *lex);
 static bool consume(stb_lexer *lex, long expected, const char *msg);
 static bool parse_value(cjson_t *cj, stb_lexer *lex);
 static bool parse_array(cjson_t *cj, stb_lexer *lex);
 static bool parse_object(cjson_t *cj, stb_lexer *lex);
+
+static void cjson__append_element(cjson_t *cj, char *key, cjson_value_t value)
+{
+    cjson_pair_t *scope = cjson__current_scope(cj);
+    if (cj->scope_type == CJSON_SCOPE_OBJECT) {
+        cjson_pair_t pair = cjson__pair(key, value);
+        cjson_dyna_append(&scope->value.as.object, pair);
+    } else if (cj->scope_type == CJSON_SCOPE_ARRAY) {
+        cjson_dyna_append(&scope->value.as.array, value);
+    }
+}
 
 static bool parse_array(cjson_t *cj, stb_lexer *lex)
 {
@@ -620,17 +631,6 @@ cjson_value_t *cjson_query(cjson_value_t *root, const char *key)
     return NULL;
 }
 
-void cjson_append_element(cjson_t *cj, char *key, cjson_value_t value)
-{
-    cjson_pair_t *scope = cjson__current_scope(cj);
-    if (cj->scope_type == CJSON_SCOPE_OBJECT) {
-        cjson_pair_t pair = cjson__pair(key, value);
-        cjson_dyna_append(&scope->value.as.object, pair);
-    } else if (cj->scope_type == CJSON_SCOPE_ARRAY) {
-        cjson_dyna_append(&scope->value.as.array, value);
-    }
-}
-
 void cjson_key(cjson_t *cj, const char *key)
 {
     assert(cj != NULL && key != NULL);
@@ -672,7 +672,7 @@ void cjson_string(cjson_t *cj, const char *value)
         .as.string = value ? strdup(value) : NULL,
     };
     char *pair_key = cjson__is_in_array(cj) ? NULL : strdup(cj->key);
-    cjson_append_element(cj, pair_key, pair_value);
+    cjson__append_element(cj, pair_key, pair_value);
 }
 
 void cjson_number(cjson_t *cj, float value)
@@ -685,7 +685,7 @@ void cjson_number(cjson_t *cj, float value)
         .as.number = value,
     };
     char *pair_key = cjson__is_in_array(cj) ? NULL : strdup(cj->key);
-    cjson_append_element(cj, pair_key, pair_value);
+    cjson__append_element(cj, pair_key, pair_value);
 }
 
 void cjson_boolean(cjson_t *cj, bool value)
@@ -698,7 +698,7 @@ void cjson_boolean(cjson_t *cj, bool value)
         .as.boolean = value,
     };
     char *pair_key = cjson__is_in_array(cj) ? NULL : strdup(cj->key);
-    cjson_append_element(cj, pair_key, pair_value);
+    cjson__append_element(cj, pair_key, pair_value);
 }
 
 void cjson_null(cjson_t *cj)
@@ -710,7 +710,7 @@ void cjson_null(cjson_t *cj)
         .type = CJSON_VALUE_NULL,
     };
     char *pair_key = cjson__is_in_array(cj) ? NULL : strdup(cj->key);
-    cjson_append_element(cj, pair_key, pair_value);
+    cjson__append_element(cj, pair_key, pair_value);
 }
 
 void cjson_array_begin(cjson_t *cj)
@@ -737,7 +737,7 @@ void cjson_array_end(cjson_t *cj)
     if (cj->scopes.count == 1) return;
 
     cjson_pair_t array = cjson__pop_scope(cj);
-    cjson_append_element(cj, array.key, array.value);
+    cjson__append_element(cj, array.key, array.value);
 }
 
 void cjson_object_begin(cjson_t *cj)
@@ -764,7 +764,7 @@ void cjson_object_end(cjson_t *cj)
     if (cj->scopes.count == 1) return;
 
     cjson_pair_t object = cjson__pop_scope(cj);
-    cjson_append_element(cj, object.key, object.value);
+    cjson__append_element(cj, object.key, object.value);
 }
 
 #undef cjson_dyna_append
