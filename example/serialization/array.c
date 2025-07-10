@@ -3,7 +3,7 @@
 
 int main(void)
 {
-    cjson_t cj = {0};
+    CJson_Context cj = {0};
     cjson_init(&cj, stdout, "\t");
 
     cjson_array_begin(&cj);
