@@ -55,11 +55,11 @@ const char *object = "{\"name\": \"Jack\", \"age\": 20, \"student\": false, }";
 
 if (!cjson_parse(&cj, object, strlen(object))) return 1;
 
-cjson_value_t *name = cjson_query(cj.root, "name");
+CJson_Value *name = cjson_query(cj.root, "name");
 assert(name != NULL);
 printf("name: %s\n", name->as.string);
 
-cjson_value_t *age = cjson_query(cj.root, "age");
+CJson_Value *age = cjson_query(cj.root, "age");
 assert(age != NULL);
 printf("age: %d\n", (int)age->as.number);
 ```
