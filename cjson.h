@@ -472,7 +472,7 @@ static void cjson__dump_pair(CJson_Context *cj, int level, CJson_Pair *pair, boo
     if (comma) {
         fwrite(",\n", 2, 1, cj->output);
     } else {
-        fwrite("\n", 2, 1, cj->output);
+        fwrite("\n", 1, 1, cj->output);
     }
 }
 
