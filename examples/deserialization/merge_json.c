@@ -1,9 +1,15 @@
-// Merging JSON involves treating the content of each JSON file as a key, 
-// adding it under a new key, and finally combining all the key-value pairs 
-// into one unified JSON.
+/*
+  Merging JSON involves treating the content of each JSON file as a key,
+  adding it under a new key, and finally combining all the key-value pairs
+  into one unified JSON.
+*/
 
-#define CJSON_IMPLEMENTATION
-#include "cjson.h"
+#define ARIS_JSON_IMPLEMENTATION
+#define ARIS_JSON_STRIP_PREFIX
+#define ARIS_JSON_ENABLE_DESERIALIZATION
+#include "aris_json.h"
+
+#include <assert.h>
 
 static char *read_file(const char *filename)
 {
@@ -46,20 +52,20 @@ const char *jsons[] = {
 
 int main(void)
 {
-    CJson_Context cj = {0};
-    cjson_init(&cj, stdout, "\t");
+    aris_json_context ctx;
+    json_init(&ctx, .indent = "  ");
 
-    cjson_object_begin(&cj);
-        for (unsigned i = 0; i < sizeof(jsons)/sizeof(jsons[0]); i++) {
-            cjson_key(&cj, jsons[i]);
+    json_object_begin(&ctx);
+        for (size_t i = 0; i < sizeof(jsons)/sizeof(jsons[0]); i++) {
+            json_key(&ctx, jsons[i]);
             char *input = read_file(jsons[i]);
-            if (!cjson_parse(&cj, input, strlen(input))) return 1;
+            if (!json_parse(&ctx, input, strlen(input))) return 1;
             free(input);
         }
-    cjson_object_end(&cj);
+    json_object_end(&ctx);
 
-    cjson_dump(&cj);
+    json_dump(&ctx);
 
-    cjson_fini(&cj);
+    json_fini(&ctx);
     return 0;
 }

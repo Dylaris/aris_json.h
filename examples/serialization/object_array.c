@@ -1,26 +1,27 @@
-#define CJSON_IMPLEMENTATION
-#include "cjson.h"
+#define ARIS_JSON_IMPLEMENTATION
+#define ARIS_JSON_STRIP_PREFIX
+#include "aris_json.h"
 
 int main(void)
 {
-    CJson_Context cj = {0};
-    cjson_init(&cj, stdout, "\t");
+    aris_json_context ctx;
+    json_init(&ctx);
 
-    cjson_object_begin(&cj);
-        cjson_key(&cj, "null");
-        cjson_null(&cj);
+    json_object_begin(&ctx);
+        json_key(&ctx, "null");
+        json_null(&ctx);
 
-        cjson_key(&cj, "array");
-        cjson_array_begin(&cj);
-            cjson_string(&cj, "hello");
-            cjson_number(&cj, 1.2);
-            cjson_boolean(&cj, false);
-            cjson_null(&cj);
-        cjson_array_end(&cj);
-    cjson_object_end(&cj);
+        json_key(&ctx, "array");
+        json_array_begin(&ctx);
+            json_string(&ctx, "hello");
+            json_number(&ctx, 1.2);
+            json_boolean(&ctx, false);
+            json_null(&ctx);
+        json_array_end(&ctx);
+    json_object_end(&ctx);
 
-    cjson_dump(&cj);
+    json_dump(&ctx);
 
-    cjson_fini(&cj);
+    json_fini(&ctx);
     return 0;
 }

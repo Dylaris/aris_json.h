@@ -1,17 +1,19 @@
-#define CJSON_IMPLEMENTATION
-#include "cjson.h"
+#define ARIS_JSON_IMPLEMENTATION
+#define ARIS_JSON_STRIP_PREFIX
+#define ARIS_JSON_ENABLE_DESERIALIZATION
+#include "aris_json.h"
 
 const char *array = "[1, 2, 3, true, false, \"hello\"]";
 
 int main(void)
 {
-    CJson_Context cj = {0};
-    cjson_init(&cj, stdout, "\t");
+    aris_json_context ctx;
+    json_init(&ctx);
 
-    if (!cjson_parse(&cj, array, strlen(array))) return 1;
+    if (!json_parse(&ctx, array, strlen(array))) return 1;
 
-    cjson_dump(&cj);
+    json_dump(&ctx);
 
-    cjson_fini(&cj);
+    json_fini(&ctx);
     return 0;
 }

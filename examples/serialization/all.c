@@ -1,80 +1,81 @@
-#define CJSON_IMPLEMENTATION
-#include "cjson.h"
+#define ARIS_JSON_IMPLEMENTATION
+#define ARIS_JSON_STRIP_PREFIX
+#include "aris_json.h"
 
 int main(void)
 {
-    CJson_Context cj;
-    cjson_init(&cj, stdout, "\t");
+    aris_json_context ctx;
+    json_init(&ctx, .indent = " ", .output_file = stderr);
 
-    cjson_object_begin(&cj);
-        cjson_key(&cj, "null");
-        cjson_null(&cj);
+    json_object_begin(&ctx);
+        json_key(&ctx, "null");
+        json_null(&ctx);
 
-        cjson_key(&cj, "string");
-        cjson_string(&cj, "hello");
+        json_key(&ctx, "string");
+        json_string(&ctx, "hello");
 
-        cjson_key(&cj, "number");
-        cjson_number(&cj, 1.24);
+        json_key(&ctx, "number");
+        json_number(&ctx, 1.24);
 
-        cjson_key(&cj, "boolean");
-        cjson_boolean(&cj, true);
+        json_key(&ctx, "boolean");
+        json_boolean(&ctx, true);
 
-        cjson_key(&cj, "array");
-        cjson_array_begin(&cj);
-            cjson_null(&cj);
-            cjson_string(&cj, "hello");
-            cjson_number(&cj, 1.24);
-            cjson_boolean(&cj, true);
-        
-            cjson_object_begin(&cj);
-                cjson_key(&cj, "null");
-                cjson_null(&cj);
-                   
-                cjson_key(&cj, "string");
-                cjson_string(&cj, "hello");
-                   
-                cjson_key(&cj, "number");
-                cjson_number(&cj, 1.24);
-                   
-                cjson_key(&cj, "boolean");
-                cjson_boolean(&cj, true);
-                   
-                cjson_key(&cj, "array");
-                cjson_array_begin(&cj);
-                    cjson_null(&cj);
-                    cjson_string(&cj, "hello");
-                    cjson_number(&cj, 1.24);
-                    cjson_boolean(&cj, true);
-                cjson_array_end(&cj);
-            cjson_object_end(&cj);
-        cjson_array_end(&cj);
+        json_key(&ctx, "array");
+        json_array_begin(&ctx);
+            json_null(&ctx);
+            json_string(&ctx, "hello");
+            json_number(&ctx, 1.24);
+            json_boolean(&ctx, true);
 
-        cjson_key(&cj, "object");
-        cjson_object_begin(&cj);
-            cjson_key(&cj, "null");
-            cjson_null(&cj);
-        
-            cjson_key(&cj, "string");
-            cjson_string(&cj, "hello");
-        
-            cjson_key(&cj, "number");
-            cjson_number(&cj, 1.24);
-        
-            cjson_key(&cj, "boolean");
-            cjson_boolean(&cj, true);
-        
-            cjson_key(&cj, "array");
-            cjson_array_begin(&cj);
-                cjson_null(&cj);
-                cjson_string(&cj, "hello");
-                cjson_number(&cj, 1.24);
-                cjson_boolean(&cj, true);
-            cjson_array_end(&cj);
-        cjson_object_end(&cj);
-    cjson_object_end(&cj);
+            json_object_begin(&ctx);
+                json_key(&ctx, "null");
+                json_null(&ctx);
 
-    cjson_dump(&cj);
+                json_key(&ctx, "string");
+                json_string(&ctx, "hello");
 
-    cjson_fini(&cj);
+                json_key(&ctx, "number");
+                json_number(&ctx, 1.24);
+
+                json_key(&ctx, "boolean");
+                json_boolean(&ctx, true);
+
+                json_key(&ctx, "array");
+                json_array_begin(&ctx);
+                    json_null(&ctx);
+                    json_string(&ctx, "hello");
+                    json_number(&ctx, 1.24);
+                    json_boolean(&ctx, true);
+                json_array_end(&ctx);
+            json_object_end(&ctx);
+        json_array_end(&ctx);
+
+        json_key(&ctx, "object");
+        json_object_begin(&ctx);
+            json_key(&ctx, "null");
+            json_null(&ctx);
+
+            json_key(&ctx, "string");
+            json_string(&ctx, "hello");
+
+            json_key(&ctx, "number");
+            json_number(&ctx, 1.24);
+
+            json_key(&ctx, "boolean");
+            json_boolean(&ctx, true);
+
+            json_key(&ctx, "array");
+            json_array_begin(&ctx);
+                json_null(&ctx);
+                json_string(&ctx, "hello");
+                json_number(&ctx, 1.24);
+                json_boolean(&ctx, true);
+            json_array_end(&ctx);
+        json_object_end(&ctx);
+    json_object_end(&ctx);
+
+    json_dump(&ctx);
+
+    json_fini(&ctx);
     return 0;
 }

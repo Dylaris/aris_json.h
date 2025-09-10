@@ -1,23 +1,24 @@
-#define CJSON_IMPLEMENTATION
-#include "cjson.h"
+#define ARIS_JSON_IMPLEMENTATION
+#define ARIS_JSON_STRIP_PREFIX
+#define ARIS_JSON_ENABLE_DESERIALIZATION
+#include "aris_json.h"
 
 const char *object = "{\"name\": \"Jack\", \"age\": 20, \"student\": false, }";
 
 int main(void)
 {
-    CJson_Context cj = {0};
-    cjson_init(&cj, stdout, "\t");
+    aris_json_context ctx;
+    json_init(&ctx);
 
-    if (!cjson_parse(&cj, object, strlen(object))) return 1;
+    if (!json_parse(&ctx, object, strlen(object))) return 1;
 
-    CJson_Value *name = cjson_query(cj.root, "name");
-    assert(name != NULL);
-    printf("name: %s\n", name->as.string);
+    const aris_json_value *root = json_get_root(&ctx);
+    const aris_json_value *name = json_get_value(root, "name");
+    if (json_is_string(name)) printf("name: %s\n", json_to_string(name));
 
-    CJson_Value *age = cjson_query(cj.root, "age");
-    assert(age != NULL);
-    printf("age: %d\n", (int)age->as.number);
+    const aris_json_value *age = json_get_value(root, "age");
+    if (json_is_number(age)) printf("age: %d\n", (int)json_to_number(age));
 
-    cjson_fini(&cj);
+    json_fini(&ctx);
     return 0;
 }
