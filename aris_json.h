@@ -8,6 +8,7 @@ BRIEF:
 NOTICE:
   This implementation directly supports serialization,
   but for deserialization, 'stb_c_lexer.h' needs to be used.
+  And it is not compatiable with C++.
 
 USAGE:
   In exactly one source file, define the implementation macro
@@ -99,10 +100,6 @@ typedef struct aris_json_context {
     aris_json_opt opt;
 } aris_json_context;
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #define aris_json_init(ctx, ...) aris_json_init_opt(ctx, (aris_json_opt){__VA_ARGS__})
 void aris_json_init_opt(aris_json_context *ctx, aris_json_opt opt);
 void aris_json_fini(aris_json_context *ctx);
@@ -135,10 +132,6 @@ const aris_json_value *aris_json_get_value(const aris_json_value *root, const ch
 #define aris_json_to_number(value)  ((value)->as.number)
 #define aris_json_to_string(value)  ((value)->as.string)
 #define aris_json_to_boolean(value) ((value)->as.boolean)
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif /* ARIS_JSON_H */
 
