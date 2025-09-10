@@ -106,6 +106,7 @@ void aris_json_fini(aris_json_context *ctx);
 void aris_json_dump(aris_json_context *ctx);
 void aris_json_default_write_to_buffer(const char *s, char *buffer, size_t size);
 void aris_json_default_write_to_file(const char *s, FILE *file);
+void aris_json_print_value(const aris_json_value *value);
 
 /* serialization */
 bool aris_json_key(aris_json_context *ctx, const char *key);
@@ -124,11 +125,17 @@ bool aris_json_parse(aris_json_context *ctx, const char *input, size_t size);
 #endif /* ARIS_JSON_ENABLE_DESERIALIZATION */
 
 /* query */
-const aris_json_value *aris_json_get_value(const aris_json_value *root, const char *key);
-#define aris_json_get_root(context) ((context)->root)
+const aris_json_value *aris_json_object_get_value(const aris_json_value *root, const char *key);
+const aris_json_pair *aris_json_object_get_pair(const aris_json_value *root, size_t idx);
+size_t aris_json_object_get_size(const aris_json_value *root);
+const aris_json_value *aris_json_array_get_value(const aris_json_value *root, size_t idx);
+size_t aris_json_array_get_size(const aris_json_value *root);
+#define aris_json_context_get_root(context) ((context)->root)
 #define aris_json_is_number(value)  ((value)->type == ARIS_JSON_VALUE_NUMBER)
 #define aris_json_is_string(value)  ((value)->type == ARIS_JSON_VALUE_STRING)
 #define aris_json_is_boolean(value) ((value)->type == ARIS_JSON_VALUE_BOOLEAN)
+#define aris_json_is_object(value)  ((value)->type == ARIS_JSON_VALUE_OBJECT)
+#define aris_json_is_array(value)   ((value)->type == ARIS_JSON_VALUE_ARRAY)
 #define aris_json_to_number(value)  ((value)->as.number)
 #define aris_json_to_string(value)  ((value)->as.string)
 #define aris_json_to_boolean(value) ((value)->as.boolean)
@@ -252,6 +259,33 @@ void aris_json_dump(aris_json_context *ctx)
     aris_json__dump_value(ctx, 0, ctx->root, true);
 }
 
+void aris_json_print_value(const aris_json_value *value)
+{
+    switch (value->type) {
+    case ARIS_JSON_VALUE_NULL:
+        printf("type: null, value: null\n");
+        break;
+    case ARIS_JSON_VALUE_OBJECT:
+        printf("type: object, value: {...}\n");
+        break;
+    case ARIS_JSON_VALUE_ARRAY:
+        printf("type: array, value: [...]\n");
+        break;
+    case ARIS_JSON_VALUE_STRING:
+        printf("type: string, value: '%s'\n", value->as.string);
+        break;
+    case ARIS_JSON_VALUE_NUMBER:
+        printf("type: number, value: '%.15g'\n", value->as.number);
+        break;
+    case ARIS_JSON_VALUE_BOOLEAN:
+        printf("type: boolean, value: '%s'\n", value->as.boolean
+                                               ? "true" : "false");
+        break;
+    default:
+        break;
+    }
+}
+
 void aris_json_default_write_to_buffer(const char *s, char *buffer, size_t size)
 {
     static size_t pos = 0;
@@ -287,7 +321,7 @@ bool aris_json_key(aris_json_context *ctx, const char *key)
     } else if (ctx->scope_type == ARIS_JSON_SCOPE_OBJECT) {
         /* check if the key already exists */
         aris_json_value *scope = aris_json__get_current_scope(ctx);
-        if (aris_json_get_value(scope, key)) {
+        if (aris_json_object_get_value(scope, key)) {
             aris_json__set_error(ctx, key, ARIS_JSON_DOUBLE_KEY);
             return false;
         } else {
@@ -418,9 +452,9 @@ bool aris_json_parse(aris_json_context *ctx, const char *input, size_t size)
 }
 #endif /* ARIS_JSON_ENABLE_DESERIALIZATION */
 
-const aris_json_value *aris_json_get_value(const aris_json_value *root, const char *key)
+const aris_json_value *aris_json_object_get_value(const aris_json_value *root, const char *key)
 {
-    if (!key) return NULL;
+    if (!key || !aris_json_is_object(root)) return NULL;
 
     for (size_t i = 0; i < aris_vec__size(root->as.object); i++) {
         aris_json_pair *pair = &root->as.object[i];
@@ -428,6 +462,28 @@ const aris_json_value *aris_json_get_value(const aris_json_value *root, const ch
     }
 
     return NULL;
+}
+
+const aris_json_pair *aris_json_object_get_pair(const aris_json_value *root, size_t idx)
+{
+    if (!aris_json_is_object(root) || idx >= aris_vec__size(root->as.object)) return NULL;
+    return &root->as.object[idx];
+}
+
+size_t aris_json_object_get_size(const aris_json_value *root)
+{
+    return aris_json_is_object(root) ? aris_vec__size(root->as.object) : 0;
+}
+
+const aris_json_value *aris_json_array_get_value(const aris_json_value *root, size_t idx)
+{
+    if (!aris_json_is_array(root) || idx >= aris_vec__size(root->as.array)) return NULL;
+    return &root->as.array[idx];
+}
+
+size_t aris_json_array_get_size(const aris_json_value *root)
+{
+    return aris_json_is_array(root) ? aris_vec__size(root->as.array) : 0;
 }
 
 static void aris_json__write(aris_json_context *ctx, const char *s)
@@ -853,6 +909,7 @@ static bool aris_json__parse_object(aris_json_context *ctx, stb_lexer *lex)
 #define json_init                    aris_json_init
 #define json_fini                    aris_json_fini
 #define json_dump                    aris_json_dump
+#define json_print_value             aris_json_print_value
 #define json_default_write_to_buffer aris_json_default_write_to_buffer
 #define json_default_write_to_file   aris_json_default_write_to_file
 #define json_key                     aris_json_key
@@ -865,14 +922,18 @@ static bool aris_json__parse_object(aris_json_context *ctx, stb_lexer *lex)
 #define json_array_begin             aris_json_array_begin
 #define json_array_end               aris_json_array_end
 #define json_parse                   aris_json_parse
-#define json_get_root                aris_json_get_root
-#define json_get_value               aris_json_get_value
 #define json_is_number               aris_json_is_number
 #define json_is_string               aris_json_is_string
 #define json_is_boolean              aris_json_is_boolean
 #define json_to_number               aris_json_to_number
 #define json_to_string               aris_json_to_string
 #define json_to_boolean              aris_json_to_boolean
+#define json_object_get_value        aris_json_object_get_value
+#define json_object_get_pair         aris_json_object_get_pair
+#define json_object_get_size         aris_json_object_get_size
+#define json_array_get_value         aris_json_array_get_value
+#define json_array_get_size          aris_json_array_get_size
+#define json_context_get_root        aris_json_context_get_root
 
 #endif /* ARIS_JSON_STRIP_PREFIX */
 
