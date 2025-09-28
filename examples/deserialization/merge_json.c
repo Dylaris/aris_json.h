@@ -4,10 +4,9 @@
   into one unified JSON.
 */
 
-#define ARIS_JSON_IMPLEMENTATION
-#define ARIS_JSON_STRIP_PREFIX
-#define ARIS_JSON_ENABLE_DESERIALIZATION
-#include "aris_json.h"
+#define JSON_IMPLEMENTATION
+#define JSON_ENABLE_DESERIALIZATION
+#include "json.h"
 
 #include <assert.h>
 
@@ -52,7 +51,7 @@ const char *jsons[] = {
 
 int main(void)
 {
-    aris_json_context ctx;
+    Json_Context ctx;
     json_init(&ctx, .indent = "  ");
 
     json_object_begin(&ctx);

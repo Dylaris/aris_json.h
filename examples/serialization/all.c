@@ -1,10 +1,9 @@
-#define ARIS_JSON_IMPLEMENTATION
-#define ARIS_JSON_STRIP_PREFIX
-#include "aris_json.h"
+#define JSON_IMPLEMENTATION
+#include "json.h"
 
 int main(void)
 {
-    aris_json_context ctx;
+    Json_Context ctx;
     json_init(&ctx, .indent = " ", .output_file = stderr);
 
     json_object_begin(&ctx);
